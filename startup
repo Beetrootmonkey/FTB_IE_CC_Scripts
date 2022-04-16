@@ -1,0 +1,172 @@
+local modem = peripheral.wrap("top")
+
+local storage = "draconic_rf_storage"
+-- print(textutils.serialize(modem.getMethodsRemote(storage)))
+-- getEnergyStored
+-- getMaxEnergyStored
+
+local bridge = "openperipheral_bridge"
+-- print(textutils.serialize(modem.getMethodsRemote(glasses)))
+-- addText(x, y, text, color)
+
+function filterPeripherals(peripherals, type)
+
+  local filtered = {}
+  
+  for i = 1, #peripherals do
+    local name = peripherals[i]
+    
+    if modem.getTypeRemote(name) == type then
+      table.insert(filtered, name)
+    end
+  end
+  
+  return filtered
+end
+
+function fillString(string, length, char, left)
+  string = string .. ""
+  while #string < length do
+    if left or false then
+      string = char .. string
+    else
+      string = string .. char
+    end
+  end
+
+  return string
+end
+
+function formatNumber(num, decimals)
+  local withoutDecimals = math.floor(num)
+  local length = #(withoutDecimals .. "")
+  local result = string.sub(num .. "", 1, length)
+
+  if decimals == 0 then
+    return result
+  end
+
+  result = result .. "."
+  local decimalPart = (num - withoutDecimals) .. ""
+  if #decimalPart == 1 then
+    decimalPart = decimalPart .. "."
+  end
+  decimalPart = fillString(decimalPart, decimals + 2, "0")
+  decimalPart = string.sub(decimalPart, 3, #decimalPart)
+  result = result .. string.sub(decimalPart, 1, decimals)
+  return result
+end
+
+function formatEnergy(energy)
+  local unit
+  local num = energy .. ""
+  
+  if #num > 15 then
+    return formatNumber(energy / math.pow(10, 15), 18 - #num) .. " PRF"
+  elseif #num > 12 then
+    return formatNumber(energy / math.pow(10, 12), 15 - #num) .. " TRF"
+  elseif #num > 9 then
+    return formatNumber(energy / math.pow(10, 9), 12 - #num) .. " GRF"
+  elseif #num > 6 then
+    return formatNumber(energy / math.pow(10, 6), 9 - #num) .. " MRF"
+  elseif #num > 3 then
+    return formatNumber(energy / math.pow(10, 3), 6 - #num) .. " kRF"
+  else
+    return energy .. " RF"
+  end
+end
+
+-- table containing all peripherals
+local peripherals = modem.getNamesRemote()
+
+local storageDevices = filterPeripherals(peripherals, storage)
+
+if #storageDevices < 1 then
+  print("Found no device of type '" .. storage .. "'")
+  return
+elseif #storageDevices > 1 then
+  print("Found more than one device of type '" .. storage .. "'")
+  return
+end
+
+local storageDevice = storageDevices[1]
+print("Conntected to storage: "..storageDevice)
+
+local bridgeDevices = filterPeripherals(peripherals, bridge)
+
+if #bridgeDevices < 1 then
+  print("Found no device of type '" .. bridge .. "'")
+else
+  print("Conntected to bridges:")
+end
+
+for i = 1, #bridgeDevices do
+  print("- "..bridgeDevices[i])
+end
+
+function mod(a, b)
+    return a - (math.floor(a / b) * b)
+end
+
+local lastEnergyStored = 0
+
+local energyGainSnapshots = {}
+local energyGainSnapshotsIndex = 1
+local energyGainSnapshotsMaxIndex = 5
+
+function addEnergyGainSnapshot(energy)
+  local energyGain = energy - lastEnergyStored
+  energyGainSnapshots[energyGainSnapshotsIndex] = energyGain
+  energyGainSnapshotsIndex = mod((energyGainSnapshotsIndex + 1), energyGainSnapshotsMaxIndex)
+end
+
+function getAverageEnergyGain()
+  local totalGain = 0
+
+  for i = 1, #energyGainSnapshots do
+    totalGain = totalGain + energyGainSnapshots[i]
+  end
+
+  return math.floor(totalGain / #energyGainSnapshots / 20)
+end
+
+while true do
+  local energyStored = modem.callRemote(storageDevice, "getEnergyStored")
+  local maxEnergyStored = modem.callRemote(storageDevice, "getMaxEnergyStored")
+  local energyPercentage = energyStored / maxEnergyStored * 100
+
+  addEnergyGainSnapshot(energyStored)
+  
+  local energyText = "Energy: " .. formatNumber(energyPercentage, 2) .. "% (" .. formatEnergy(energyStored) .. "/" .. formatEnergy(maxEnergyStored) .. ")"
+
+  local gain = getAverageEnergyGain()
+  local prefix = "+"
+  local gainColor = 0x55ff55
+  local gainBackgroundColor = 0x153f15
+  if gain < 0 then
+    prefix = ""
+    gainColor = 0xaa0000
+    gainBackgroundColor = 0xaa0000
+  end
+  
+  local gainText = prefix .. formatEnergy(gain) .. "/t"
+    
+  for i = 1, #bridgeDevices do
+    local bridgeDevice = bridgeDevices[i]
+    
+    modem.callRemote(bridgeDevice, "clear")
+    modem.callRemote(bridgeDevice, "addText", 3, 21, energyText, 0x3b3b3b)
+    modem.callRemote(bridgeDevice, "addText", 2, 20, energyText, 0xeeeeee)
+    modem.callRemote(bridgeDevice, "addText", 3, 30, "Gain:", 0x3b3b3b)
+    modem.callRemote(bridgeDevice, "addText", 2, 29, "Gain:", 0xeeeeee)
+    modem.callRemote(bridgeDevice, "addText", 29, 30, gainText, gainBackgroundColor)
+    modem.callRemote(bridgeDevice, "addText", 28, 29, gainText, gainColor)
+
+    modem.callRemote(bridgeDevice, "sync")
+    
+  end
+
+  lastEnergyStored = energyStored
+  
+  sleep(1)
+end
