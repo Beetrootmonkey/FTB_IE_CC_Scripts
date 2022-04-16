@@ -9,6 +9,10 @@ local bridge = "openperipheral_bridge"
 -- print(textutils.serialize(modem.getMethodsRemote(glasses)))
 -- addText(x, y, text, color)
 
+local meSystem = "tilecontroller"
+-- print(textutils.serialize(modem.getMethodsRemote(glasses)))
+-- addText(x, y, text, color)
+
 function filterPeripherals(peripherals, type)
 
   local filtered = {}
@@ -57,41 +61,89 @@ function formatNumber(num, decimals)
   return result
 end
 
-function formatEnergy(energy)
-  local unit
+function formatBigNumber(energy, unit)
   local num = energy .. ""
   
   if #num > 15 then
-    return formatNumber(energy / math.pow(10, 15), 18 - #num) .. " PRF"
+    return formatNumber(energy / math.pow(10, 15), 18 - #num) .. " P" .. unit
   elseif #num > 12 then
-    return formatNumber(energy / math.pow(10, 12), 15 - #num) .. " TRF"
+    return formatNumber(energy / math.pow(10, 12), 15 - #num) .. " T" .. unit
   elseif #num > 9 then
-    return formatNumber(energy / math.pow(10, 9), 12 - #num) .. " GRF"
+    return formatNumber(energy / math.pow(10, 9), 12 - #num) .. " G" .. unit
   elseif #num > 6 then
-    return formatNumber(energy / math.pow(10, 6), 9 - #num) .. " MRF"
+    return formatNumber(energy / math.pow(10, 6), 9 - #num) .. " M" .. unit
   elseif #num > 3 then
-    return formatNumber(energy / math.pow(10, 3), 6 - #num) .. " kRF"
+    return formatNumber(energy / math.pow(10, 3), 6 - #num) .. " k" .. unit
+  elseif unit then
+    return energy .. " " .. unit
   else
-    return energy .. " RF"
+    return energy
   end
 end
+
+function formatCraftingCpuStorage(storage)
+  if storage > 64000 then return "64k"
+  elseif storage > 16000 then return "16k"
+  elseif storage > 4000 then return "4k"
+  end
+  return "1k"
+end
+
+
+function isOnlyOneInstanceIsAvailable(deviceList, type)
+  if #deviceList < 1 then
+    print("Found no device of type '" .. type .. "'")
+    return false
+  elseif #deviceList > 1 then
+    print("Found more than one device of type '" .. type .. "'")
+    return false
+  end
+
+  return true
+end
+
+function mod(a, b)
+    return a - (math.floor(a / b) * b)
+end
+
 
 -- table containing all peripherals
 local peripherals = modem.getNamesRemote()
 
+print("Network contains " .. #peripherals .. " other devices:")
+
+for i=1, #peripherals do
+  local name = peripherals[i]
+  print("- '" .. name .. "'  of type " ..  modem.getTypeRemote(name))
+end
+
+
+-- Look for DE Energy Cores
 local storageDevices = filterPeripherals(peripherals, storage)
 
-if #storageDevices < 1 then
-  print("Found no device of type '" .. storage .. "'")
-  return
-elseif #storageDevices > 1 then
-  print("Found more than one device of type '" .. storage .. "'")
+-- Abort if we find less or more than one DE Energy Core
+if not isOnlyOneInstanceIsAvailable(storageDevices, storage) then
   return
 end
 
 local storageDevice = storageDevices[1]
-print("Conntected to storage: "..storageDevice)
+print("Conntected to Energy Core: " .. storageDevice)
 
+
+
+-- Look for ME Controllers
+local meSystemDevices = filterPeripherals(peripherals, meSystem)
+
+-- Abort if we find less or more than one ME Controller
+if not isOnlyOneInstanceIsAvailable(meSystemDevices, meSystem) then
+  return
+end
+
+local meSystemDevice = meSystemDevices[1]
+print("Conntected to ME System: " .. meSystemDevice)
+
+
+-- Look for OP Bridges
 local bridgeDevices = filterPeripherals(peripherals, bridge)
 
 if #bridgeDevices < 1 then
@@ -101,26 +153,30 @@ else
 end
 
 for i = 1, #bridgeDevices do
-  print("- "..bridgeDevices[i])
+  print("- " .. bridgeDevices[i])
 end
 
-function mod(a, b)
-    return a - (math.floor(a / b) * b)
-end
 
 local lastEnergyStored = 0
-
 local energyGainSnapshots = {}
 local energyGainSnapshotsIndex = 1
-local energyGainSnapshotsMaxIndex = 5
+local energyGainSnapshotsMaxIndex = 10
 
 function addEnergyGainSnapshot(energy)
   local energyGain = energy - lastEnergyStored
   energyGainSnapshots[energyGainSnapshotsIndex] = energyGain
-  energyGainSnapshotsIndex = mod((energyGainSnapshotsIndex + 1), energyGainSnapshotsMaxIndex)
+  energyGainSnapshotsIndex = energyGainSnapshotsIndex + 1
+
+  if energyGainSnapshotsIndex > energyGainSnapshotsMaxIndex then
+    energyGainSnapshotsIndex = 1
+  end
 end
 
 function getAverageEnergyGain()
+  if #energyGainSnapshots < energyGainSnapshotsMaxIndex then
+    return nil
+  end
+
   local totalGain = 0
 
   for i = 1, #energyGainSnapshots do
@@ -130,41 +186,88 @@ function getAverageEnergyGain()
   return math.floor(totalGain / #energyGainSnapshots / 20)
 end
 
+print("Starting loop...")
+
 while true do
+  -- Read energy
   local energyStored = modem.callRemote(storageDevice, "getEnergyStored")
   local maxEnergyStored = modem.callRemote(storageDevice, "getMaxEnergyStored")
   local energyPercentage = energyStored / maxEnergyStored * 100
 
   addEnergyGainSnapshot(energyStored)
   
-  local energyText = "Energy: " .. formatNumber(energyPercentage, 2) .. "% (" .. formatEnergy(energyStored) .. "/" .. formatEnergy(maxEnergyStored) .. ")"
+  local energyText = "Energy Core: " .. formatNumber(energyPercentage, 2) .. "% (" .. formatBigNumber(energyStored, "RF") .. "/" .. formatBigNumber(maxEnergyStored, "RF") .. ")"
 
   local gain = getAverageEnergyGain()
   local prefix = "+"
   local gainColor = 0x55ff55
   local gainBackgroundColor = 0x153f15
-  if gain < 0 then
+
+  if gain == nil or gain < 0 then
+    prefix = ""
+    gainColor = 0xeeeeee
+    gainBackgroundColor = 0x3b3b3b
+  elseif gain == nil or gain < 0 then
     prefix = ""
     gainColor = 0xaa0000
-    gainBackgroundColor = 0xaa0000
+    gainBackgroundColor = 0x2a0000
   end
   
-  local gainText = prefix .. formatEnergy(gain) .. "/t"
+  local gainText = "Calculating..."
+  if gain ~= nil then
+    gainText = prefix .. formatBigNumber(gain, "RF/t")
+  end
     
+
+  -- Display text
   for i = 1, #bridgeDevices do
     local bridgeDevice = bridgeDevices[i]
     
     modem.callRemote(bridgeDevice, "clear")
-    modem.callRemote(bridgeDevice, "addText", 3, 21, energyText, 0x3b3b3b)
-    modem.callRemote(bridgeDevice, "addText", 2, 20, energyText, 0xeeeeee)
-    modem.callRemote(bridgeDevice, "addText", 3, 30, "Gain:", 0x3b3b3b)
-    modem.callRemote(bridgeDevice, "addText", 2, 29, "Gain:", 0xeeeeee)
-    modem.callRemote(bridgeDevice, "addText", 29, 30, gainText, gainBackgroundColor)
-    modem.callRemote(bridgeDevice, "addText", 28, 29, gainText, gainColor)
 
-    modem.callRemote(bridgeDevice, "sync")
-    
+    modem.callRemote(bridgeDevice, "addText", 3, 24, energyText, 0x3b3b3b)
+    modem.callRemote(bridgeDevice, "addText", 2, 23, energyText, 0xeeeeee)
+    modem.callRemote(bridgeDevice, "addText", 3, 33, "Gain:", 0x3b3b3b)
+    modem.callRemote(bridgeDevice, "addText", 2, 32, "Gain:", 0xeeeeee)
+    modem.callRemote(bridgeDevice, "addText", 29, 33, gainText, gainBackgroundColor)
+    modem.callRemote(bridgeDevice, "addText", 28, 32, gainText, gainColor)
+  
+    -- Read ME System stuff
+    local craftingCpus = modem.callRemote(meSystemDevice, "getCraftingCPUs")
+    local cpuTitle = "Crafting CPUs:"
+
+    if #craftingCpus == 0 then
+      cpuTitle = "No Crafting CPUs available"
+    end
+
+    modem.callRemote(bridgeDevice, "addText", 3, 45, cpuTitle, 0x3b3b3b)
+    modem.callRemote(bridgeDevice, "addText", 2, 44, cpuTitle, 0xeeeeee)
+
+
+    for i = 1, #craftingCpus do
+      local cpu = craftingCpus[i]
+      local text = "- " .. formatCraftingCpuStorage(cpu.storage) .. ", " .. (cpu.coprocessors + 1) .. " Cores"
+
+      local busyText = "idle"
+      local color = 0x55ff55
+      local backgroundColor = 0x153f15
+
+      if cpu.busy then
+        busyText = "busy"
+        color = 0xaa0000
+        backgroundColor = 0x2a0000
+      end
+
+      text = text .. " (" .. busyText .. ")"
+
+      modem.callRemote(bridgeDevice, "addText", 3, 45 + 9 * 1, text, backgroundColor)
+      modem.callRemote(bridgeDevice, "addText", 2, 44 + 9 * 1, text, color)
+    end
+
+
+    modem.callRemote(bridgeDevice, "sync")    
   end
+
 
   lastEnergyStored = energyStored
   
