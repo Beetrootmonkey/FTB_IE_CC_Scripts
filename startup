@@ -13,6 +13,8 @@ local meSystem = "tilecontroller"
 -- print(textutils.serialize(modem.getMethodsRemote(glasses)))
 -- addText(x, y, text, color)
 
+print("Starting auto-discovery...")
+
 function filterPeripherals(peripherals, type)
 
   local filtered = {}
@@ -163,7 +165,7 @@ if not isOnlyOneInstanceIsAvailable(storageDevices, storage) then
 end
 
 local storageDevice = storageDevices[1]
-print("Conntected to Energy Core: " .. storageDevice)
+print("Connecting to Energy Core: " .. storageDevice)
 
 
 
@@ -176,7 +178,7 @@ if not isOnlyOneInstanceIsAvailable(meSystemDevices, meSystem) then
 end
 
 local meSystemDevice = meSystemDevices[1]
-print("Conntected to ME System: " .. meSystemDevice)
+print("Connecting to ME System: " .. meSystemDevice)
 
 
 -- Look for OP Bridges
@@ -185,7 +187,7 @@ local bridgeDevices = filterPeripherals(peripherals, bridge)
 if #bridgeDevices < 1 then
   print("Found no device of type '" .. bridge .. "'")
 else
-  print("Conntected to bridges:")
+  print("Connecting to the following bridges:")
 end
 
 for i = 1, #bridgeDevices do
@@ -222,7 +224,11 @@ function getAverageEnergyGain()
   return math.floor(totalGain / #energyGainSnapshots / 20)
 end
 
-print("Starting loop...")
+print("Finished setup")
+print("")
+print("Program is running.")
+print("If you're not seeing anything, put on AR glasses")
+print("")
 
 while true do
   -- Read energy
