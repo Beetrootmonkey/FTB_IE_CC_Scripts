@@ -89,6 +89,42 @@ function formatCraftingCpuStorage(storage)
   return "1k"
 end
 
+function formatTime(seconds)
+  local hours = math.floor(seconds / 3600)
+  seconds = seconds - hours * 3600
+
+  local minutes = math.floor(seconds / 60)
+  seconds = seconds - minutes * 60
+
+  return hours .. ":" .. fillString(minutes, 2, "0", true) .. ":" .. fillString(seconds, 2, "0", true)
+end
+
+function formatTimeApproximate(seconds)
+  local weeks = math.floor(seconds / (7 * 24 * 3600))
+  seconds = seconds - weeks * 7 * 24 * 3600
+
+  local days = math.floor(seconds / (24 * 3600))
+  seconds = seconds - days * 24 * 3600
+ 
+  local hours = math.floor(seconds / 3600)
+  seconds = seconds - hours * 3600
+
+  local minutes = math.floor(seconds / 60)
+  seconds = seconds - minutes * 60
+
+  if weeks > 0 then
+    return weeks .. "-" .. (weeks + 1) .. " w"
+  elseif days > 0 then
+    return days .. "-" .. (days + 1) .. " d"
+  elseif hours > 0 then
+    return hours .. "-" .. (hours + 1) .. " h"
+  elseif minutes > 0 then
+    return minutes .. "-" .. (minutes + 1) .. " min"
+  end
+
+  return "several seconds"
+end
+
 
 function isOnlyOneInstanceIsAvailable(deviceList, type)
   if #deviceList < 1 then
@@ -114,7 +150,7 @@ print("Network contains " .. #peripherals .. " other devices:")
 
 for i=1, #peripherals do
   local name = peripherals[i]
-  print("- '" .. name .. "'  of type " ..  modem.getTypeRemote(name))
+  print("- [" .. modem.getTypeRemote(name) .. "] " .. name)
 end
 
 
@@ -199,15 +235,16 @@ while true do
   local energyText = "Energy Core: " .. formatNumber(energyPercentage, 2) .. "% (" .. formatBigNumber(energyStored, "RF") .. "/" .. formatBigNumber(maxEnergyStored, "RF") .. ")"
 
   local gain = getAverageEnergyGain()
-  local prefix = "+"
-  local gainColor = 0x55ff55
-  local gainBackgroundColor = 0x153f15
+  local prefix = ""
+  local gainColor = 0xeeeeee
+  local gainBackgroundColor = 0x3b3b3b
 
-  if gain == nil or gain < 0 then
-    prefix = ""
-    gainColor = 0xeeeeee
-    gainBackgroundColor = 0x3b3b3b
-  elseif gain == nil or gain < 0 then
+  if gain ~= nil and gain > 0 then
+    prefix = "+"
+    gainColor = 0x55ff55
+    gainBackgroundColor = 0x153f15
+
+  elseif gain ~= nil and gain < 0 then
     prefix = ""
     gainColor = 0xaa0000
     gainBackgroundColor = 0x2a0000
@@ -216,6 +253,12 @@ while true do
   local gainText = "Calculating..."
   if gain ~= nil then
     gainText = prefix .. formatBigNumber(gain, "RF/t")
+
+    if gain > 0 then
+      gainText = gainText .. " (" .. formatTimeApproximate(math.floor((maxEnergyStored - energyStored) / gain / 20)) .. " until full)"
+    elseif gain < 0 then
+      gainText = gainText .. " (" .. formatTimeApproximate(math.floor(energyStored / gain / -20)) .. " remaining)"
+    end
   end
     
 
