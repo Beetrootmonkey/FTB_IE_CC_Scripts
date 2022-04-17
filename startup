@@ -257,7 +257,7 @@ while true do
     if gain > 0 then
       gainText = gainText .. " (" .. formatTimeApproximate(math.floor((maxEnergyStored - energyStored) / gain / 20)) .. " until full)"
     elseif gain < 0 then
-      gainText = gainText .. " (" .. formatTimeApproximate(math.floor(energyStored / gain / -20)) .. " remaining)"
+      gainText = gainText .. " (" .. formatTimeApproximate(math.floor(energyStored / gain / -20)) .. " until empty)"
     end
   end
     
