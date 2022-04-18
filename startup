@@ -13,8 +13,6 @@ local meSystem = "tilecontroller"
 -- print(textutils.serialize(modem.getMethodsRemote(glasses)))
 -- addText(x, y, text, color)
 
-print("Starting auto-discovery...")
-
 function filterPeripherals(peripherals, type)
 
   local filtered = {}
@@ -141,9 +139,12 @@ function isOnlyOneInstanceIsAvailable(deviceList, type)
 end
 
 function mod(a, b)
-    return a - (math.floor(a / b) * b)
+  return a - (math.floor(a / b) * b)
 end
 
+-- Start program
+print("Starting auto-discovery...")
+sleep(1)
 
 -- table containing all peripherals
 local peripherals = modem.getNamesRemote()
@@ -154,6 +155,7 @@ for i=1, #peripherals do
   local name = peripherals[i]
   print("- [" .. modem.getTypeRemote(name) .. "] " .. name)
 end
+sleep(1)
 
 
 -- Look for DE Energy Cores
@@ -166,6 +168,7 @@ end
 
 local storageDevice = storageDevices[1]
 print("Connecting to Energy Core: " .. storageDevice)
+sleep(1)
 
 
 
@@ -179,6 +182,7 @@ end
 
 local meSystemDevice = meSystemDevices[1]
 print("Connecting to ME System: " .. meSystemDevice)
+sleep(1)
 
 
 -- Look for OP Bridges
@@ -193,14 +197,19 @@ end
 for i = 1, #bridgeDevices do
   print("- " .. bridgeDevices[i])
 end
+sleep(1)
 
 
-local lastEnergyStored = 0
+local lastEnergyStored
 local energyGainSnapshots = {}
 local energyGainSnapshotsIndex = 1
 local energyGainSnapshotsMaxIndex = 10
 
 function addEnergyGainSnapshot(energy)
+  if lastEnergyStored == nil then
+    return
+  end
+  
   local energyGain = energy - lastEnergyStored
   energyGainSnapshots[energyGainSnapshotsIndex] = energyGain
   energyGainSnapshotsIndex = energyGainSnapshotsIndex + 1
@@ -226,8 +235,9 @@ end
 
 print("Finished setup")
 print("")
-print("Program is running.")
+print("Program is running")
 print("If you're not seeing anything, put on AR glasses")
+print("If program errors, press CTRL + R to restart")
 print("")
 
 while true do
@@ -282,6 +292,21 @@ while true do
     modem.callRemote(bridgeDevice, "addText", 28, 32, gainText, gainColor)
   
     -- Read ME System stuff
+    local energyUsage = math.floor(modem.callRemote(meSystemDevice, "getAvgPowerUsage"))
+    local energyInjection = math.floor(modem.callRemote(meSystemDevice, "getAvgPowerInjection"))
+    local energyStored = math.floor(modem.callRemote(meSystemDevice, "getEnergyStored"))
+    local maxEnergyStored = math.floor(modem.callRemote(meSystemDevice, "getMaxEnergyStored"))
+    local energyPercentage = energyStored / maxEnergyStored * 100
+
+    
+    local meSystemTitle = "ME System: " .. formatNumber(energyPercentage, 0) .. "% (" .. formatBigNumber(energyStored, "RF") .. "/" .. formatBigNumber(maxEnergyStored, "RF") .. ")"
+    modem.callRemote(bridgeDevice, "addText", 3, 45, meSystemTitle, 0x3b3b3b)
+    modem.callRemote(bridgeDevice, "addText", 2, 44, meSystemTitle, 0xeeeeee)
+    
+    local meEnergyText = "Using: " .. formatBigNumber(energyUsage, "RF/t") .. "/" .. formatBigNumber(energyInjection, "RF/t")
+    modem.callRemote(bridgeDevice, "addText", 3, 54, meEnergyText, 0x3b3b3b)
+    modem.callRemote(bridgeDevice, "addText", 2, 53, meEnergyText, 0xeeeeee)
+        
     local craftingCpus = modem.callRemote(meSystemDevice, "getCraftingCPUs")
     local cpuTitle = "Crafting CPUs:"
 
@@ -289,8 +314,8 @@ while true do
       cpuTitle = "No Crafting CPUs available"
     end
 
-    modem.callRemote(bridgeDevice, "addText", 3, 45, cpuTitle, 0x3b3b3b)
-    modem.callRemote(bridgeDevice, "addText", 2, 44, cpuTitle, 0xeeeeee)
+    modem.callRemote(bridgeDevice, "addText", 3, 66, cpuTitle, 0x3b3b3b)
+    modem.callRemote(bridgeDevice, "addText", 2, 65, cpuTitle, 0xeeeeee)
 
 
     for i = 1, #craftingCpus do
@@ -309,8 +334,8 @@ while true do
 
       text = text .. " (" .. busyText .. ")"
 
-      modem.callRemote(bridgeDevice, "addText", 3, 45 + 9 * 1, text, backgroundColor)
-      modem.callRemote(bridgeDevice, "addText", 2, 44 + 9 * 1, text, color)
+      modem.callRemote(bridgeDevice, "addText", 3, 66 + 9 * 1, text, backgroundColor)
+      modem.callRemote(bridgeDevice, "addText", 2, 65 + 9 * 1, text, color)
     end
 
 
