@@ -1,0 +1,9 @@
+print("Waiting")
+
+  local senderId, message, protocol = rednet.receive("test")
+  print("Received response:")
+  print(senderId)
+  print(message)
+  print(protocol)
+  sleep(10)
+

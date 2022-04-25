@@ -248,7 +248,8 @@ while true do
 
   addEnergyGainSnapshot(energyStored)
   
-  local energyText = "Energy Core: " .. formatNumber(energyPercentage, 2) .. "% (" .. formatBigNumber(energyStored, "RF") .. "/" .. formatBigNumber(maxEnergyStored, "RF") .. ")"
+  --local energyText = "Energy Core: " .. formatNumber(energyPercentage, 2) .. "% (" .. formatBigNumber(energyStored, "RF") .. "/" .. formatBigNumber(maxEnergyStored, "RF") .. ")"
+  local energyText = "Energy Core: " .. formatNumber(energyPercentage, 2) .. "% (Max: " .. formatBigNumber(maxEnergyStored, "RF") .. ")"
 
   local gain = getAverageEnergyGain()
   local prefix = ""
@@ -299,11 +300,12 @@ while true do
     local energyPercentage = energyStored / maxEnergyStored * 100
 
     
-    local meSystemTitle = "ME System: " .. formatNumber(energyPercentage, 0) .. "% (" .. formatBigNumber(energyStored, "RF") .. "/" .. formatBigNumber(maxEnergyStored, "RF") .. ")"
+    --local meSystemTitle = "ME System: " .. formatNumber(energyPercentage, 0) .. "% (" .. formatBigNumber(energyStored, "RF") .. "/" .. formatBigNumber(maxEnergyStored, "RF") .. ")"
+    local meSystemTitle = "ME System: " .. formatNumber(energyPercentage, 0) .. "% (Max: " .. formatBigNumber(maxEnergyStored, "RF") .. ")"
     modem.callRemote(bridgeDevice, "addText", 3, 45, meSystemTitle, 0x3b3b3b)
     modem.callRemote(bridgeDevice, "addText", 2, 44, meSystemTitle, 0xeeeeee)
     
-    local meEnergyText = "Using: " .. formatBigNumber(energyUsage, "RF/t") .. "/" .. formatBigNumber(energyInjection, "RF/t")
+    local meEnergyText = "Using: " .. formatBigNumber(energyUsage, "RF/t")
     modem.callRemote(bridgeDevice, "addText", 3, 54, meEnergyText, 0x3b3b3b)
     modem.callRemote(bridgeDevice, "addText", 2, 53, meEnergyText, 0xeeeeee)
         
@@ -312,31 +314,22 @@ while true do
 
     if #craftingCpus == 0 then
       cpuTitle = "No Crafting CPUs available"
-    end
+    else
+      local busyCpus = 0
 
-    modem.callRemote(bridgeDevice, "addText", 3, 66, cpuTitle, 0x3b3b3b)
-    modem.callRemote(bridgeDevice, "addText", 2, 65, cpuTitle, 0xeeeeee)
+      for i = 1, #craftingCpus do
+        local cpu = craftingCpus[i]
 
-
-    for i = 1, #craftingCpus do
-      local cpu = craftingCpus[i]
-      local text = "- " .. formatCraftingCpuStorage(cpu.storage) .. ", " .. (cpu.coprocessors + 1) .. " Cores"
-
-      local busyText = "idle"
-      local color = 0x55ff55
-      local backgroundColor = 0x153f15
-
-      if cpu.busy then
-        busyText = "busy"
-        color = 0xaa0000
-        backgroundColor = 0x2a0000
+        if cpu.busy then
+          busyCpus = busyCpus + 1
+        end
       end
-
-      text = text .. " (" .. busyText .. ")"
-
-      modem.callRemote(bridgeDevice, "addText", 3, 66 + 9 * 1, text, backgroundColor)
-      modem.callRemote(bridgeDevice, "addText", 2, 65 + 9 * 1, text, color)
+      
+      cpuTitle = cpuTitle .. " " .. busyCpus .. "/" .. #craftingCpus .. " busy"
     end
+
+    modem.callRemote(bridgeDevice, "addText", 3, 63, cpuTitle, 0x3b3b3b)
+    modem.callRemote(bridgeDevice, "addText", 2, 62, cpuTitle, 0xeeeeee)
 
 
     modem.callRemote(bridgeDevice, "sync")    

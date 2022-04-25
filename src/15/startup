@@ -1,0 +1,36 @@
+local connected = false
+local count = 0
+
+while true do
+  local chest = peripheral.wrap("right")
+  
+  if chest ~= nil and not connected then
+    print("Connected to chest")
+    connected = true
+  elseif chest == nil and connected then
+    print("Lost connection to chest")
+    connected = false
+  end
+  
+  if connected then
+    local item = chest.getStackInSlot(1)
+    
+    if item.qty ~= count then
+      print("Stack size changed to " .. item.qty)
+      
+      if item.qty <= 20 then
+        print("> Disabling redstone")
+        redstone.setOutput("back", false)
+      else
+        print("> Enabling redstone")
+        redstone.setOutput("back", true)
+      end
+    end
+    
+    count = item.qty
+    
+    sleep(1)
+  else
+    sleep(5)
+  end
+end
